@@ -15,6 +15,7 @@
 package main
 
 import (
+	"encoding/json"
 	"html/template"
 	"log"
 	"net"
@@ -68,6 +69,12 @@ func main() {
 	log.Fatal(err)
 }
 
+type response struct {
+	RegionCode string `json:"region_code"`
+	RegionGeo  string `json:"region_geo"`
+	FlagURL    string `json:"flag_url"`
+}
+
 func handle(w http.ResponseWriter, r *http.Request) {
 	var srcIP string
 	if ipHeader := r.Header.Get("X-Forwarded-For"); ipHeader != "" {
@@ -94,6 +101,22 @@ func handle(w http.ResponseWriter, r *http.Request) {
 	if ok {
 		cityName = dc.location
 		flagURL = dc.flagURL
+	}
+
+	if accept := r.Header.Get("Accept"); accept == "application/json" {
+		res := &response{computeZone, cityName, flagURL}
+
+		resByte, err := json.Marshal(res)
+		if err != nil {
+			log.Fatalf("failed to marshal to json: %v", err)
+		}
+
+		w.Header().Add("Content-Type", "application/json")
+		if _, err := w.Write(resByte); err != nil {
+			log.Fatalf("failed to write body: %v", err)
+		}
+
+		return
 	}
 
 	if err := templates.ExecuteTemplate(w, "successPage", map[string]interface{}{
